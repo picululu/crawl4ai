@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from jwt import JWT, jwk_from_dict
 from jwt.utils import get_int_from_datetime
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import EmailStr
 from pydantic.main import BaseModel
@@ -13,6 +13,7 @@ instance = JWT()
 security = HTTPBearer(auto_error=False)
 SECRET_KEY = os.environ.get("SECRET_KEY", "mysecret")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+API_KEY = os.environ.get("CRAWL4AI_API_KEY")
 
 def get_jwk_from_secret(secret: str):
     """Convert a secret string into a JWK object."""
@@ -67,6 +68,26 @@ def get_token_dependency(config: Dict):
         return jwt_required
     else:
         return lambda: None
+
+
+def get_api_key_dependency():
+    """Return API key dependency if CRAWL4AI_API_KEY is set."""
+    if API_KEY:
+        def api_key_required(request: Request) -> None:
+            """Check X-API-Key header or Bearer token against API_KEY."""
+            key = request.headers.get("X-API-Key")
+            if not key:
+                auth = request.headers.get("Authorization", "")
+                if auth.startswith("Bearer "):
+                    key = auth[7:]
+            if key != API_KEY:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid or missing API key",
+                    headers={"WWW-Authenticate": "X-API-Key"}
+                )
+        return api_key_required
+    return lambda request: None
 
 
 class TokenRequest(BaseModel):

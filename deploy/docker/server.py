@@ -9,7 +9,7 @@ Crawl4AI FastAPI entry‑point
 # ── stdlib & 3rd‑party imports ───────────────────────────────
 from crawler_pool import get_crawler, close_all, janitor
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
-from auth import create_access_token, get_token_dependency, TokenRequest
+from auth import create_access_token, get_token_dependency, TokenRequest, API_KEY
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from fastapi import Request, Depends
@@ -235,6 +235,26 @@ async def add_security_headers(request: Request, call_next):
     if config["security"]["enabled"]:
         resp.headers.update(config["security"]["headers"])
     return resp
+
+
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    """Check API key for all routes except /health when CRAWL4AI_API_KEY is set."""
+    if API_KEY:
+        path = request.url.path
+        # Allow health check without auth
+        if path not in ["/health", "/", "/docs", "/openapi.json", "/redoc"]:
+            key = request.headers.get("X-API-Key")
+            if not key:
+                auth = request.headers.get("Authorization", "")
+                if auth.startswith("Bearer "):
+                    key = auth[7:]
+            if key != API_KEY:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid or missing API key"}
+                )
+    return await call_next(request)
 
 # ───────────────── safe config‑dump helper ─────────────────
 ALLOWED_TYPES = {
