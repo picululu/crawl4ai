@@ -2,7 +2,7 @@
 
 **Format:** Ultra-Dense Reference (Optimized for AI Assistants & Developers)
 **Version:** 0.7.7
-**Default Port:** 11235
+**Base URL:** `https://crawl4ai-production-0a7e.up.railway.app`
 
 ---
 
@@ -24,31 +24,28 @@
 
 # Quick Start
 
-## Docker Run
+## Base URL
 
-```bash
-# Basic run
-docker run -d -p 11235:11235 --name crawl4ai --shm-size=1g unclecode/crawl4ai:latest
-
-# With LLM support (create .llm.env with your API keys first)
-docker run -d -p 11235:11235 --name crawl4ai --env-file .llm.env --shm-size=1g unclecode/crawl4ai:latest
-
-# With API key authentication
-docker run -d -p 11235:11235 -e CRAWL4AI_API_KEY=your-secret-key --shm-size=1g unclecode/crawl4ai:latest
 ```
+https://crawl4ai-production-0a7e.up.railway.app
+```
+
+All API requests require authentication via API key (see [Authentication](#authentication)).
 
 ## First API Call
 
 **curl:**
 ```bash
 # Simple crawl
-curl -X POST http://localhost:11235/crawl \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/crawl \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"urls": ["https://example.com"]}'
 
 # Get markdown
-curl -X POST http://localhost:11235/md \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/md \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com", "f": "fit"}'
 ```
 
@@ -56,9 +53,16 @@ curl -X POST http://localhost:11235/md \
 ```python
 import requests
 
+BASE_URL = "https://crawl4ai-production-0a7e.up.railway.app"
+HEADERS = {
+    "Content-Type": "application/json",
+    "X-API-Key": "YOUR_API_KEY"
+}
+
 # Simple crawl
 response = requests.post(
-    "http://localhost:11235/crawl",
+    f"{BASE_URL}/crawl",
+    headers=HEADERS,
     json={"urls": ["https://example.com"]}
 )
 result = response.json()
@@ -67,7 +71,10 @@ print(result["results"][0]["markdown"]["raw_markdown"][:500])
 # Using the SDK
 from crawl4ai.docker_client import Crawl4aiDockerClient
 
-async with Crawl4aiDockerClient(base_url="http://localhost:11235") as client:
+async with Crawl4aiDockerClient(
+    base_url=BASE_URL,
+    api_key="YOUR_API_KEY"
+) as client:
     result = await client.crawl(["https://example.com"])
     print(result[0].markdown)
 ```
@@ -76,15 +83,15 @@ async with Crawl4aiDockerClient(base_url="http://localhost:11235") as client:
 
 | Interface | URL | Purpose |
 |-----------|-----|---------|
-| Playground | `http://localhost:11235/playground` | Interactive testing, config generation |
-| Dashboard | `http://localhost:11235/dashboard` | Real-time monitoring |
-| API Docs | `http://localhost:11235/docs` | OpenAPI/Swagger UI |
+| Playground | `https://crawl4ai-production-0a7e.up.railway.app/playground` | Interactive testing, config generation |
+| Dashboard | `https://crawl4ai-production-0a7e.up.railway.app/dashboard` | Real-time monitoring |
+| API Docs | `https://crawl4ai-production-0a7e.up.railway.app/docs` | OpenAPI/Swagger UI |
 
 ## MCP Quick Setup (Claude Code)
 
 ```bash
 # Add Crawl4AI as MCP provider
-claude mcp add --transport sse c4ai-sse http://localhost:11235/mcp/sse
+claude mcp add --transport sse c4ai-sse https://crawl4ai-production-0a7e.up.railway.app/mcp/sse
 
 # Verify
 claude mcp list
@@ -96,7 +103,7 @@ claude mcp list
 
 ## API Key Authentication
 
-Set `CRAWL4AI_API_KEY` environment variable on the server to enable.
+All API requests (except public endpoints) require an API key.
 
 **Header formats:**
 ```
@@ -105,42 +112,20 @@ X-API-Key: your-api-key
 Authorization: Bearer your-api-key
 ```
 
+**Example:**
+```bash
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/crawl \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{"urls": ["https://example.com"]}'
+```
+
 **Public endpoints (no auth required):**
 - `/health`
 - `/`
 - `/docs`
 - `/openapi.json`
 - `/redoc`
-
-## JWT Token Authentication
-
-Enable in `config.yml`:
-```yaml
-security:
-  enabled: true
-  jwt_enabled: true
-```
-
-**Get token:**
-```bash
-curl -X POST http://localhost:11235/token \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com"}'
-```
-
-**Response:**
-```json
-{
-  "email": "user@example.com",
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "token_type": "bearer"
-}
-```
-
-**Use token:**
-```
-Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
-```
 
 ---
 
@@ -185,8 +170,9 @@ Main batch crawling endpoint. Returns JSON results for one or more URLs.
 
 **curl:**
 ```bash
-curl -X POST http://localhost:11235/crawl \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/crawl \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "urls": ["https://example.com"],
     "crawler_config": {
@@ -240,9 +226,15 @@ Streaming crawl endpoint. Returns NDJSON (newline-delimited JSON).
 import httpx
 import json
 
+HEADERS = {"X-API-Key": "YOUR_API_KEY"}
+
 async with httpx.AsyncClient() as client:
-    async with client.stream("POST", "http://localhost:11235/crawl/stream",
-                              json={"urls": ["https://example.com"]}) as response:
+    async with client.stream(
+        "POST",
+        "https://crawl4ai-production-0a7e.up.railway.app/crawl/stream",
+        headers=HEADERS,
+        json={"urls": ["https://example.com"]}
+    ) as response:
         async for line in response.aiter_lines():
             if line:
                 data = json.loads(line)
@@ -278,13 +270,15 @@ Generate markdown from a URL with optional content filtering.
 **curl:**
 ```bash
 # Basic fit markdown
-curl -X POST http://localhost:11235/md \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/md \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com", "f": "fit"}'
 
 # BM25 filtered
-curl -X POST http://localhost:11235/md \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/md \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://news.ycombinator.com", "f": "bm25", "q": "artificial intelligence"}'
 ```
 
@@ -319,8 +313,9 @@ Discover all URLs on a website. Uses sitemap first, falls back to crawling.
 
 **curl:**
 ```bash
-curl -X POST http://localhost:11235/map \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/map \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com", "max_urls": 100}'
 ```
 
@@ -354,8 +349,9 @@ Get preprocessed HTML optimized for schema extraction.
 
 **curl:**
 ```bash
-curl -X POST http://localhost:11235/html \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/html \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com"}'
 ```
 
@@ -385,13 +381,15 @@ Capture a full-page PNG screenshot.
 **curl:**
 ```bash
 # Return base64-encoded screenshot
-curl -X POST http://localhost:11235/screenshot \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/screenshot \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com"}'
 
-# Save to file
-curl -X POST http://localhost:11235/screenshot \
+# Save to file (server-side path)
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/screenshot \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com", "output_path": "/tmp/screenshot.png"}'
 ```
 
@@ -426,8 +424,9 @@ Generate a PDF document of a webpage.
 
 **curl:**
 ```bash
-curl -X POST http://localhost:11235/pdf \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/pdf \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com", "output_path": "/tmp/page.pdf"}'
 ```
 
@@ -456,8 +455,9 @@ Execute JavaScript snippets on a webpage and return full crawl result.
 
 **curl:**
 ```bash
-curl -X POST http://localhost:11235/execute_js \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/execute_js \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "url": "https://example.com",
     "scripts": [
@@ -483,7 +483,8 @@ Q&A endpoint using LLM with crawled content as context.
 
 **curl:**
 ```bash
-curl "http://localhost:11235/llm/https://example.com?q=What+is+this+page+about"
+curl "https://crawl4ai-production-0a7e.up.railway.app/llm/https://example.com?q=What+is+this+page+about" \
+  -H "X-API-Key: YOUR_API_KEY"
 ```
 
 **Response:**
@@ -511,10 +512,12 @@ BM25-powered documentation search for Crawl4AI library context.
 **curl:**
 ```bash
 # Search for extraction strategy info
-curl "http://localhost:11235/ask?query=extraction+strategy&context_type=doc"
+curl "https://crawl4ai-production-0a7e.up.railway.app/ask?query=extraction+strategy&context_type=doc" \
+  -H "X-API-Key: YOUR_API_KEY"
 
 # Get all code context (large response)
-curl "http://localhost:11235/ask?context_type=code"
+curl "https://crawl4ai-production-0a7e.up.railway.app/ask?context_type=code" \
+  -H "X-API-Key: YOUR_API_KEY"
 ```
 
 **Response:**
@@ -554,8 +557,9 @@ Submit asynchronous crawl job. Returns immediately with task ID.
 
 **curl:**
 ```bash
-curl -X POST http://localhost:11235/crawl/job \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/crawl/job \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "urls": ["https://example.com"],
     "webhook_config": {
@@ -632,8 +636,9 @@ Submit asynchronous LLM extraction job.
 
 **curl:**
 ```bash
-curl -X POST http://localhost:11235/llm/job \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/llm/job \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "url": "https://example.com/article",
     "q": "Extract the title and main points",
@@ -785,15 +790,15 @@ The Model Context Protocol (MCP) enables AI models to access Crawl4AI's capabili
 
 | Transport | URL | Description |
 |-----------|-----|-------------|
-| SSE | `http://localhost:11235/mcp/sse` | Server-Sent Events (recommended) |
-| WebSocket | `ws://localhost:11235/mcp/ws` | WebSocket transport |
-| Schema | `http://localhost:11235/mcp/schema` | Tool/resource schemas |
+| SSE | `https://crawl4ai-production-0a7e.up.railway.app/mcp/sse` | Server-Sent Events (recommended) |
+| WebSocket | `wss://crawl4ai-production-0a7e.up.railway.app/mcp/ws` | WebSocket transport |
+| Schema | `https://crawl4ai-production-0a7e.up.railway.app/mcp/schema` | Tool/resource schemas |
 
 ## Claude Code Integration
 
 ```bash
 # Add MCP provider
-claude mcp add --transport sse c4ai-sse http://localhost:11235/mcp/sse
+claude mcp add --transport sse c4ai-sse https://crawl4ai-production-0a7e.up.railway.app/mcp/sse
 
 # List providers
 claude mcp list
@@ -820,7 +825,8 @@ claude mcp remove c4ai-sse
 Get full tool definitions:
 
 ```bash
-curl http://localhost:11235/mcp/schema
+curl https://crawl4ai-production-0a7e.up.railway.app/mcp/schema \
+  -H "X-API-Key: YOUR_API_KEY"
 ```
 
 **Response:**
@@ -847,7 +853,7 @@ import json
 import websockets
 
 async def mcp_call():
-    async with websockets.connect("ws://localhost:11235/mcp/ws") as ws:
+    async with websockets.connect("wss://crawl4ai-production-0a7e.up.railway.app/mcp/ws") as ws:
         # Initialize
         await ws.send(json.dumps({
             "jsonrpc": "2.0",
@@ -990,52 +996,6 @@ Non-primitive config values use `{"type": "ClassName", "params": {...}}` format:
 }
 ```
 
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `CRAWL4AI_API_KEY` | API key for authentication |
-| `SECRET_KEY` | JWT signing secret |
-| `LLM_PROVIDER` | Default LLM provider override |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `GEMINI_API_TOKEN` | Gemini API token |
-
-## Server config.yml Sections
-
-```yaml
-app:
-  title: "Crawl4AI API"
-  port: 11235
-  reload: false
-
-llm:
-  provider: "openai/gpt-4o-mini"
-
-redis:
-  uri: "redis://localhost:6379"
-
-rate_limiting:
-  enabled: true
-  default_limit: "1000/minute"
-
-security:
-  enabled: false
-  jwt_enabled: false
-
-crawler:
-  memory_threshold_percent: 95.0
-  pool:
-    max_pages: 30
-
-webhooks:
-  enabled: true
-  default_url: null
-  retry:
-    max_attempts: 5
-    initial_delay_ms: 1000
-```
-
 ---
 
 # Error Handling
@@ -1078,11 +1038,15 @@ import asyncio
 import requests
 import json
 
-BASE_URL = "http://localhost:11235"
+BASE_URL = "https://crawl4ai-production-0a7e.up.railway.app"
+HEADERS = {
+    "Content-Type": "application/json",
+    "X-API-Key": "YOUR_API_KEY"
+}
 
 # Simple crawl
 def simple_crawl():
-    response = requests.post(f"{BASE_URL}/crawl", json={
+    response = requests.post(f"{BASE_URL}/crawl", headers=HEADERS, json={
         "urls": ["https://example.com"]
     })
     data = response.json()
@@ -1091,7 +1055,7 @@ def simple_crawl():
 
 # Crawl with extraction
 def crawl_with_extraction():
-    response = requests.post(f"{BASE_URL}/crawl", json={
+    response = requests.post(f"{BASE_URL}/crawl", headers=HEADERS, json={
         "urls": ["https://news.ycombinator.com"],
         "crawler_config": {
             "type": "CrawlerRunConfig",
@@ -1124,7 +1088,7 @@ def crawl_with_extraction():
 # Async job with polling
 def async_crawl_with_polling():
     # Submit job
-    response = requests.post(f"{BASE_URL}/crawl/job", json={
+    response = requests.post(f"{BASE_URL}/crawl/job", headers=HEADERS, json={
         "urls": ["https://example.com"]
     })
     task_id = response.json()["task_id"]
@@ -1133,7 +1097,7 @@ def async_crawl_with_polling():
     # Poll for completion
     import time
     while True:
-        status = requests.get(f"{BASE_URL}/crawl/job/{task_id}").json()
+        status = requests.get(f"{BASE_URL}/crawl/job/{task_id}", headers=HEADERS).json()
         if status["status"] == "completed":
             print("Done:", status["result"]["results"][0]["url"])
             break
@@ -1153,11 +1117,15 @@ import asyncio
 import httpx
 import json
 
+BASE_URL = "https://crawl4ai-production-0a7e.up.railway.app"
+HEADERS = {"X-API-Key": "YOUR_API_KEY"}
+
 async def stream_crawl():
     async with httpx.AsyncClient() as client:
         async with client.stream(
             "POST",
-            "http://localhost:11235/crawl/stream",
+            f"{BASE_URL}/crawl/stream",
+            headers=HEADERS,
             json={
                 "urls": [
                     "https://example.com",
@@ -1214,34 +1182,39 @@ if __name__ == "__main__":
 ## curl Examples
 
 ```bash
-# Health check
-curl http://localhost:11235/health
+# Health check (no auth required)
+curl https://crawl4ai-production-0a7e.up.railway.app/health
 
 # Simple markdown
-curl -X POST http://localhost:11235/md \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/md \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://example.com", "f": "fit"}'
 
 # Site mapping
-curl -X POST http://localhost:11235/map \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/map \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{"url": "https://docs.python.org", "max_urls": 50}'
 
 # Screenshot
-curl -X POST http://localhost:11235/screenshot \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/screenshot \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com", "output_path": "/tmp/shot.png"}'
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{"url": "https://example.com"}'
 
 # LLM Q&A
-curl "http://localhost:11235/llm/https://example.com?q=What+is+this+page+about"
+curl "https://crawl4ai-production-0a7e.up.railway.app/llm/https://example.com?q=What+is+this+page+about" \
+  -H "X-API-Key: YOUR_API_KEY"
 
 # Async job with webhook
-curl -X POST http://localhost:11235/crawl/job \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/crawl/job \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "urls": ["https://example.com"],
     "webhook_config": {
-      "webhook_url": "http://localhost:5000/webhook/crawl",
+      "webhook_url": "https://myapp.com/webhook/crawl",
       "webhook_data_in_payload": true
     }
   }'
@@ -1250,8 +1223,9 @@ curl -X POST http://localhost:11235/crawl/job \
 ## Using Hooks
 
 ```bash
-curl -X POST http://localhost:11235/crawl \
+curl -X POST https://crawl4ai-production-0a7e.up.railway.app/crawl \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "urls": ["https://example.com"],
     "hooks": {
@@ -1273,7 +1247,8 @@ For the Python SDK (`Crawl4aiDockerClient`), see the main SDK documentation or u
 from crawl4ai.docker_client import Crawl4aiDockerClient
 
 async with Crawl4aiDockerClient(
-    base_url="http://localhost:11235",
+    base_url="https://crawl4ai-production-0a7e.up.railway.app",
+    api_key="YOUR_API_KEY",
     timeout=60.0,
     verbose=True
 ) as client:
