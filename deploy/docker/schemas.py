@@ -104,3 +104,13 @@ class WebhookPayload(BaseModel):
     urls: List[str]
     error: Optional[str] = None
     data: Optional[Dict] = None  # Included only if webhook_data_in_payload=True
+
+
+class MapRequest(BaseModel):
+    """Request body for the /map endpoint - site URL discovery."""
+    url: str = Field(..., description="Base URL to map")
+    max_urls: int = Field(5000, ge=1, le=50000, description="Maximum URLs to return")
+    include_subdomains: bool = Field(False, description="Include URLs from subdomains")
+    search: Optional[str] = Field(None, description="Filter URLs containing this string")
+    ignore_sitemap: bool = Field(False, description="Skip sitemap, use crawl-based discovery")
+    max_depth: int = Field(3, ge=1, le=10, description="Max crawl depth when using crawl-based discovery")

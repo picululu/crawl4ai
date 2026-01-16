@@ -21,7 +21,7 @@ from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
 from api import (
     handle_markdown_request, handle_llm_qa,
     handle_stream_crawl_request, handle_crawl_request,
-    stream_results
+    stream_results, handle_map_request
 )
 from schemas import (
     CrawlRequestWithHooks,
@@ -31,6 +31,7 @@ from schemas import (
     ScreenshotRequest,
     PDFRequest,
     JSEndpointRequest,
+    MapRequest,
 )
 
 from utils import (
@@ -343,6 +344,32 @@ async def get_markdown(
         "markdown": markdown,
         "success": True
     })
+
+
+@app.post("/map")
+@limiter.limit(config["rate_limiting"]["default_limit"])
+@mcp_tool("map")
+async def map_site(
+    request: Request,
+    body: MapRequest,
+    _td: Dict = Depends(token_dep),
+):
+    """
+    Discover all URLs on a website.
+    Uses sitemap first (fast), falls back to crawling if no sitemap exists.
+    """
+    if not body.url.startswith(("http://", "https://")):
+        raise HTTPException(400, "Invalid URL format. Must start with http:// or https://")
+
+    result = await handle_map_request(
+        url=body.url,
+        max_urls=body.max_urls,
+        include_subdomains=body.include_subdomains,
+        search=body.search,
+        ignore_sitemap=body.ignore_sitemap,
+        max_depth=body.max_depth,
+    )
+    return JSONResponse(result)
 
 
 @app.post("/html")

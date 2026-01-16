@@ -853,3 +853,106 @@ async def handle_crawl_job(
 
     background_tasks.add_task(_runner)
     return {"task_id": task_id}
+
+
+async def handle_map_request(
+    url: str,
+    max_urls: int = 5000,
+    include_subdomains: bool = False,
+    search: Optional[str] = None,
+    ignore_sitemap: bool = False,
+    max_depth: int = 3,
+) -> dict:
+    """
+    Discover all URLs on a website.
+    Uses sitemap first (fast), falls back to crawling if no sitemap exists.
+    """
+    from urllib.parse import urlparse
+    from crawl4ai import AsyncUrlSeeder, SeedingConfig
+    from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
+    from crawler_pool import get_crawler
+
+    start_time = time.time()
+    parsed = urlparse(url)
+    domain = parsed.netloc
+    base_url = f"{parsed.scheme}://{parsed.netloc}"
+
+    discovered_urls = []
+    source = "sitemap"
+
+    # Step 1: Try sitemap first (unless ignore_sitemap)
+    if not ignore_sitemap:
+        try:
+            async with AsyncUrlSeeder() as seeder:
+                config = SeedingConfig(
+                    source="sitemap",
+                    max_urls=max_urls,
+                    pattern="*"
+                )
+                results = await seeder.urls(domain, config)
+                discovered_urls = [r["url"] for r in results if r.get("url")]
+                logger.info(f"Sitemap discovery found {len(discovered_urls)} URLs for {domain}")
+        except Exception as e:
+            logger.warning(f"Sitemap discovery failed for {domain}: {e}")
+
+    # Step 2: Fall back to crawling if no sitemap URLs found
+    if not discovered_urls:
+        source = "crawl"
+        try:
+            crawler = await get_crawler(BrowserConfig())
+            crawl_config = CrawlerRunConfig(
+                deep_crawl_strategy=BFSDeepCrawlStrategy(
+                    max_depth=max_depth,
+                    max_pages=min(max_urls, 500),  # Limit pages to crawl
+                    include_external=include_subdomains,
+                ),
+                cache_mode=CacheMode.BYPASS,
+            )
+            results = await crawler.arun(url=url, config=crawl_config)
+
+            # Collect all discovered URLs from crawl results
+            if isinstance(results, list):
+                for result in results:
+                    discovered_urls.append(result.url)
+                    if result.links:
+                        for link in result.links.get("internal", []):
+                            if link.get("href"):
+                                discovered_urls.append(link["href"])
+            else:
+                discovered_urls.append(results.url)
+                if results.links:
+                    for link in results.links.get("internal", []):
+                        if link.get("href"):
+                            discovered_urls.append(link["href"])
+
+            logger.info(f"Crawl discovery found {len(discovered_urls)} URLs for {domain}")
+        except Exception as e:
+            logger.error(f"Crawl discovery failed for {domain}: {e}")
+            return {
+                "success": False,
+                "url": url,
+                "urls": [],
+                "count": 0,
+                "source": source,
+                "time_seconds": time.time() - start_time,
+                "error": str(e)
+            }
+
+    # Step 3: Apply filters
+    if search:
+        discovered_urls = [u for u in discovered_urls if search.lower() in u.lower()]
+
+    if not include_subdomains:
+        discovered_urls = [u for u in discovered_urls if urlparse(u).netloc == domain]
+
+    # Step 4: Deduplicate, sort, and limit
+    discovered_urls = sorted(set(discovered_urls))[:max_urls]
+
+    return {
+        "success": True,
+        "url": url,
+        "urls": discovered_urls,
+        "count": len(discovered_urls),
+        "source": source,
+        "time_seconds": round(time.time() - start_time, 3)
+    }

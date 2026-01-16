@@ -21,7 +21,14 @@
       "Bash(curl:*)",
       "Bash(docker compose:*)",
       "Bash(./test-final-integration.sh:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(railway --version:*)",
+      "Bash(railway whoami:*)",
+      "Bash(railway status:*)",
+      "Bash(railway logs:*)",
+      "Bash(railway --help:*)",
+      "WebSearch",
+      "Bash(openssl rand:*)"
     ]
   },
   "enableAllProjectMcpServers": false
